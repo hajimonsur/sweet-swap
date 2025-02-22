@@ -1,0 +1,132 @@
+/* General Styling */
+body {
+    font-family: 'Poppins', Arial, sans-serif;
+    text-align: center;
+    background: linear-gradient(135deg, #fbc2eb, #a6c1ee);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+}
+
+h1 {
+    font-size: 2.5rem;
+    color: #fff;
+    text-shadow: 3px 3px 8px rgba(0, 0, 0, 0.3);
+    margin-bottom: 15px;
+}
+
+/* Game Board */
+#game-board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    gap: 5px;
+    justify-content: center;
+    align-content: center;
+    width: min(90vw, 450px);
+    height: min(90vw, 450px);
+    background: rgba(255, 255, 255, 0.2);
+    padding: 15px;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0px 8px 18px rgba(0, 0, 0, 0.3);
+    border: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Candy Styling */
+.candy {
+    width: 100%;
+    aspect-ratio: 1/1;
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    box-shadow: inset 0px -4px 6px rgba(0, 0, 0, 0.3), 0px 5px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Glossy Effect */
+.candy::before {
+    content: "";
+    position: absolute;
+    top: 15%;
+    left: 20%;
+    width: 60%;
+    height: 30%;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    transform: rotate(-20deg);
+}
+
+/* Click & Hover Effects */
+.candy:hover {
+    transform: scale(1.2);
+    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.5);
+}
+
+.candy:active {
+    transform: scale(0.9);
+}
+
+/* Candy Colors with Glossy Gradient */
+.red {
+    background: radial-gradient(circle, #ff4d4d, #a00000);
+}
+
+.blue {
+    background: radial-gradient(circle, #4d79ff, #0022a0);
+}
+
+.green {
+    background: radial-gradient(circle, #4dff4d, #007000);
+}
+
+.yellow {
+    background: radial-gradient(circle, #ffeb3b, #c0a000);
+}
+
+.purple {
+    background: radial-gradient(circle, #bf5fff, #6a0080);
+}
+
+.orange {
+    background: radial-gradient(circle, #ff914d, #b84600);
+}
+
+/* Candy Disappear Animation */
+@keyframes pop {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: scale(0);
+        opacity: 0;
+    }
+}
+
+.match {
+    animation: pop 0.3s ease-in-out forwards;
+}
+
+/* Mobile Responsive */
+@media (max-width: 600px) {
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    #game-board {
+        width: min(90vw, 350px);
+        height: min(90vw, 350px);
+    }
+}
