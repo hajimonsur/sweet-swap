@@ -53,19 +53,6 @@ h1 {
     box-shadow: inset 0px -4px 6px rgba(0, 0, 0, 0.3), 0px 5px 10px rgba(0, 0, 0, 0.2);
 }
 
-/* Glossy Effect */
-.candy::before {
-    content: "";
-    position: absolute;
-    top: 15%;
-    left: 20%;
-    width: 60%;
-    height: 30%;
-    background: rgba(255, 255, 255, 0.6);
-    border-radius: 50%;
-    transform: rotate(-20deg);
-}
-
 /* Click & Hover Effects */
 .candy:hover {
     transform: scale(1.15);
@@ -101,18 +88,21 @@ h1 {
     background: radial-gradient(circle, #ff914d, #b84600);
 }
 
+/* Striped Candy */
+.striped {
+    background: repeating-linear-gradient(45deg, #fff, #fff 10px, transparent 10px, transparent 20px), radial-gradient(circle, #ff4d4d, #a00000);
+}
+
 /* Candy Disappear Animation */
 @keyframes pop {
     0% {
         transform: scale(1);
         opacity: 1;
     }
-
     50% {
         transform: scale(1.2);
         opacity: 0.5;
     }
-
     100% {
         transform: scale(0);
         opacity: 0;
