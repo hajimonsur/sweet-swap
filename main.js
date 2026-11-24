@@ -1074,7 +1074,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { transform: `translate(${dx * progress}px,${dy * progress}px)` },
           { transform: `translate(${dx}px,${dy}px)` },
         ],
-        Math.max(90, 220 * (1 - progress)),
+        Math.max(75, 165 * (1 - progress)),
       ),
       animate(
         B.firstElementChild,
@@ -1082,7 +1082,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { transform: `translate(${-dx * progress}px,${-dy * progress}px)` },
           { transform: `translate(${-dx}px,${-dy}px)` },
         ],
-        Math.max(90, 220 * (1 - progress)),
+        Math.max(75, 165 * (1 - progress)),
       ),
     ]);
     A.style.zIndex = B.style.zIndex = "";
@@ -1245,32 +1245,43 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function previewSwipe(p, e) {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
-    // Allow direction correction until the finger is well into the drag.
-    if ((!p.axis || p.progress < 0.2) && Math.max(Math.abs(dx), Math.abs(dy)) >= 3)
-      p.axis = Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
-    if (!p.axis) return;
-    const distance = p.axis === "x" ? dx : dy;
-    const target = p.i + Math.sign(distance) * (p.axis === "x" ? 1 : N);
-    clearSwipePreview(p);
-    p.target = -1;
-    p.progress = 0;
     const source = cells[p.i];
-    source.classList.add("swipe-source");
-    if (!distance || !adjacent(p.i, target) || blocked(p.i) || blocked(target)) return;
-    const a = source.getBoundingClientRect(), b = cells[target].getBoundingClientRect();
-    const x = b.left - a.left, y = b.top - a.top;
-    const step = Math.hypot(x, y);
-    if (!step) return;
-    p.target = target;
-    p.progress = Math.min(1, Math.abs(distance) / step);
-    cells[target].classList.add("swipe-neighbor");
-    if (!reduced) {
-      source.firstElementChild.style.transform = `translate(${x * p.progress}px,${y * p.progress}px)`;
-      cells[target].firstElementChild.style.transform = `translate(${-x * p.progress}px,${-y * p.progress}px)`;
+    if (!source) return;
+    const rect = source.getBoundingClientRect();
+    const stepX = rect.width + (parseFloat(getComputedStyle(board).columnGap) || 0);
+    const stepY = rect.height + (parseFloat(getComputedStyle(board).rowGap) || 0);
+    const clamp = (n, limit) => Math.max(-limit, Math.min(limit, n));
+    // Direct manipulation is essential interaction feedback, even with Reduce Motion.
+    if ((!p.axis) && Math.max(Math.abs(dx), Math.abs(dy)) >= 3)
+      p.axis = Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
+    const distance = p.axis === "x" ? dx : dy;
+    const target = p.axis && distance ? p.i + Math.sign(distance) * (p.axis === "x" ? 1 : N) : -1;
+    const valid = adjacent(p.i, target) && !blocked(p.i) && !blocked(target);
+    if (p.target !== target && cells[p.target]) {
+      cells[p.target].classList.remove("swipe-neighbor");
+      cells[p.target].firstElementChild.style.transform = "";
     }
+    p.target = valid ? target : -1;
+    p.progress = 0;
+    source.classList.add("swipe-source");
+    let x = clamp(dx, stepX), y = clamp(dy, stepY);
+    if (valid) {
+      const other = cells[target], r = other.getBoundingClientRect();
+      const sx = r.left - rect.left, sy = r.top - rect.top;
+      const step = Math.hypot(sx, sy);
+      if (step) {
+        p.progress = Math.min(1, Math.abs(distance) / step);
+        other.classList.add("swipe-neighbor");
+        other.firstElementChild.style.transform = `translate3d(${-sx * p.progress}px,${-sy * p.progress}px,0)`;
+        // Keep the held candy under the finger, with soft resistance past one tile.
+        if (p.axis === "x") { x = sx * p.progress + clamp(dx - sx * p.progress, stepX * .18) * .4; y *= .25; }
+        else { y = sy * p.progress + clamp(dy - sy * p.progress, stepY * .18) * .4; x *= .25; }
+      }
+    } else { x *= .28; y *= .28; }
+    source.firstElementChild.style.transform = `translate3d(${x}px,${y}px,0) scale(1.04)`;
   }
   function commitSwipe(p) {
-    const target = p.target, progress = reduced ? 0 : p.progress;
+    const target = p.target, progress = p.progress;
     cancelSwipe();
     vibrate(12);
     move(p.i, target, progress);
@@ -1280,25 +1291,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const c = e.target.closest(".cell");
     if (!c) return;
     unlockAudio();
-    pointer = { id: e.pointerId, i: Number(c.dataset.index), x: e.clientX, y: e.clientY, axis: null, target: -1, progress: 0 };
+    pointer = { id: e.pointerId, i: Number(c.dataset.index), x: e.clientX, y: e.clientY, axis: null, target: -1, progress: 0, started: performance.now() };
+    e.preventDefault();
     board.setPointerCapture(e.pointerId);
-    c.classList.add("swipe-source");
+    if (!booster) {
+      c.classList.add("swipe-source");
+      c.firstElementChild.style.transform = "scale(1.04)";
+    }
     clearHint();
   });
   board.addEventListener("pointermove", (e) => {
     const p = pointer;
     if (!p || p.id !== e.pointerId || booster) return;
     if (!playable()) { cancelSwipe(); return; }
+    if (e.cancelable) e.preventDefault();
     previewSwipe(p, e);
-    // Keep following the finger until release, even after a full tile drag.
-    // Never commit early: the player can reverse or cancel the gesture.
+    // One directional flick per contact; commit before the finger lifts.
+    const threshold = performance.now() - p.started < 180 ? 0.24 : 0.40;
+    if (p.target >= 0 && p.progress >= threshold) commitSwipe(p);
   });
   board.addEventListener("pointerup", (e) => {
     const p = pointer;
     if (!p || p.id !== e.pointerId) return;
     if (!playable()) { cancelSwipe(); return; }
     if (!booster) previewSwipe(p, e);
-    if (!booster && p.target >= 0 && p.progress >= 0.30) {
+    if (!booster && p.target >= 0 && p.progress >= (performance.now() - p.started < 220 ? 0.16 : 0.30)) {
       commitSwipe(p);
       return;
     }
