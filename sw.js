@@ -1,5 +1,5 @@
 /* Sweet Swap: release-scoped offline assets. Increment RELEASE for each deployment. */
-const RELEASE = '2026-11-24-motion-1';
+const RELEASE = '2026-11-24-continuous-motion-1';
 const CACHE = 'sweet-swap-' + RELEASE;
 const root = self.registration.scope;
 const asset = name => new URL(name, root).href;

@@ -925,6 +925,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   async function drop(v) {
     const falls = new Map();
+    const nodes = new Map(grid.flatMap((c,i) => c ? [[c,cells[i].firstElementChild]] : []));
     for (let c = 0; c < N; c++) {
       let w = N - 1;
       for (let r = N - 1; r >= 0; r--) {
@@ -948,22 +949,21 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
     if (!current(v)) return;
+    const nextNodes = grid.map(c => nodes.get(c) || document.createElement('span'));
+    // Detach before reparenting, then paint all positions in the same frame.
+    for (const cell of cells) cell.replaceChildren();
+    nextNodes.forEach((el,i) => {
+      el.style.transform = '';
+      el.style.opacity = '';
+      cells[i].append(el);
+    });
     render();
     const step = cells[N].getBoundingClientRect().top - cells[0].getBoundingClientRect().top;
-    await Promise.all(
-      [...falls].map(([i, d]) =>
-        animate(
-          cells[i].firstElementChild,
-          [
-            { transform: `translateY(${-d * step}px)`, opacity: 1 },
-            { transform: "translateY(0)", opacity: 1 },
-          ],
-          Math.min(480, 240 + d * 25),
-          true,
-        ),
-      ),
-    );
+    const items = [...falls].map(([i,d]) => ({el:nextNodes[i],x:0,y:-d*step}));
+    if (items.length) await glide(items, Math.min(440, 260 + Math.max(...falls.values())*22), v);
+    if (current(v)) for (const {el} of items) el.style.transform = '';
   }
+
   async function resolve(v, first = null, preferred = []) {
     let matchPlan = first || plan(runs(grid), preferred);
     combo = 1;
@@ -1060,35 +1060,38 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   }
+  // Keep the same visible candy node throughout the entire journey.
+  function glide(items, duration, v = version) {
+    const started = performance.now();
+    for (const {el, x, y} of items) el.style.transform = `translate3d(${x}px,${y}px,0)`;
+    return new Promise(resolve => {
+      function frame(now) {
+        if (v !== version) { resolve(false); return; }
+        const t = Math.min(1, (now - started) / duration);
+        const eased = 1 - Math.pow(1 - t, 2);
+        for (const {el, x, y, endX = 0, endY = 0} of items) {
+          el.style.transform = `translate3d(${x+(endX-x)*eased}px,${y+(endY-y)*eased}px,0)`;
+        }
+        if (t < 1) requestAnimationFrame(frame);
+        else resolve(true);
+      }
+      requestAnimationFrame(frame);
+    });
+  }
   async function swapAnimation(a, b, progress = 0) {
-    const A = cells[a],
-      B = cells[b],
-      ra = A.getBoundingClientRect(),
-      rb = B.getBoundingClientRect(),
-      dx = rb.left - ra.left,
-      dy = rb.top - ra.top;
-    A.style.zIndex = B.style.zIndex = 5;
-    await Promise.all([
-      animate(
-        A.firstElementChild,
-        [
-          { transform: `translate(${dx * progress}px,${dy * progress}px)` },
-          { transform: `translate(${dx}px,${dy}px)` },
-        ],
-        Math.max(130, 260 * (1 - progress)),
-        true,
-      ),
-      animate(
-        B.firstElementChild,
-        [
-          { transform: `translate(${-dx * progress}px,${-dy * progress}px)` },
-          { transform: `translate(${-dx}px,${-dy}px)` },
-        ],
-        Math.max(130, 260 * (1 - progress)),
-        true,
-      ),
-    ]);
-    A.style.zIndex = B.style.zIndex = "";
+    const A = cells[a], B = cells[b], x = A.firstElementChild, y = B.firstElementChild;
+    const ra = A.getBoundingClientRect(), rb = B.getBoundingClientRect();
+    const dx = rb.left-ra.left, dy = rb.top-ra.top;
+    A.style.zIndex = B.style.zIndex = 12;
+    const done = await glide([
+      {el:x,x:dx*progress,y:dy*progress,endX:dx,endY:dy},
+      {el:y,x:-dx*progress,y:-dy*progress,endX:-dx,endY:-dy}
+    ], Math.max(180, 280*(1-progress)));
+    if (done && x.parentNode===A && y.parentNode===B) {
+      A.append(y); B.append(x);
+      x.style.transform = y.style.transform = '';
+    }
+    A.style.zIndex = B.style.zIndex = '';
   }
   async function move(a, b, progress = 0) {
     if (!playable() || !adjacent(a, b) || blocked(a) || blocked(b) || booster)
@@ -1312,7 +1315,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.cancelable) e.preventDefault();
     previewSwipe(p, e);
     // One directional flick per contact; commit before the finger lifts.
-    const threshold = performance.now() - p.started < 180 ? 0.24 : 0.40;
+    const threshold = performance.now() - p.started < 180 ? 0.38 : 0.55;
     if (p.target >= 0 && p.progress >= threshold) commitSwipe(p);
   });
   board.addEventListener("pointerup", (e) => {
