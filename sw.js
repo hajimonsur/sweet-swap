@@ -1,5 +1,5 @@
 /* Sweet Swap: release-scoped offline assets. Increment RELEASE for each deployment. */
-const RELEASE = '2026-11-24-layered-board-1';
+const RELEASE = '2026-11-24-auto-update-1';
 const CACHE = 'sweet-swap-' + RELEASE;
 const root = self.registration.scope;
 const asset = name => new URL(name, root).href;
@@ -34,6 +34,9 @@ self.addEventListener('fetch', event => {
   if(req.method!=='GET'||url.origin!==self.location.origin||!url.href.startsWith(root))return;
   const navigation=req.mode==='navigate' && (url.pathname===new URL(root).pathname||url.pathname===new URL(asset('index.html')).pathname);
   if(!navigation&&!urls.has(url.href))return;
+  // Check the network on every game navigation, including cached/offline launches.
+  // The active release remains coherent until a complete new release is installed.
+  if(navigation) event.waitUntil(self.registration.update().catch(()=>{}));
   event.respondWith((async()=>{
     const cache=await caches.open(CACHE), key=navigation?asset('index.html'):url.href;
     const hit=await cache.match(key);

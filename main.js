@@ -2193,6 +2193,8 @@ document.addEventListener("DOMContentLoaded", () => {
           );
           let prompt = null, applying = false, dismissedWorker = null;
           let hadController = Boolean(navigator.serviceWorker.controller);
+          let checking = null, reloadStarted = false;
+          const watched = new WeakSet();
           const waitForIdle = async () => {
             while (busy) await new Promise(resolve => setTimeout(resolve, 100));
             cancelSwipe();
@@ -2201,41 +2203,85 @@ document.addEventListener("DOMContentLoaded", () => {
           };
           navigator.serviceWorker.addEventListener("controllerchange", async () => {
             if (!hadController && !applying) { hadController = true; return; }
+            if (reloadStarted) return;
+            reloadStarted = true;
             if (prompt) prompt.querySelector(".update-status").textContent = "Saving and opening the new version…";
             await waitForIdle();
             location.reload();
           });
-          const notifyUpdate = () => {
+          const applyUpdate = async (worker) => {
+            if (applying || reloadStarted) return;
+            applying = true;
+            const status = prompt?.querySelector(".update-status");
+            const buttons = prompt?.querySelectorAll("button") || [];
+            buttons.forEach(b => b.disabled = true);
+            if (status) status.textContent = "Saving your game…";
+            try {
+              await waitForIdle();
+              if (reloadStarted) return;
+              if (registration.waiting !== worker) {
+                applying = false;
+                buttons.forEach(b => b.disabled = false);
+                if (status) status.textContent = "Checking for the latest version…";
+                return;
+              }
+              if (status) status.textContent = "Installing update…";
+              worker.postMessage({ type: "SKIP_WAITING" });
+            } catch (error) {
+              console.warn("Sweet Swap update could not activate:", error);
+            }
+            setTimeout(() => {
+              if (reloadStarted) return;
+              applying = false;
+              buttons.forEach(b => b.disabled = false);
+              if (status) status.textContent = "Update has not activated yet. Try again when connected.";
+              if (!prompt) notifyUpdate(false);
+            }, 15000);
+          };
+          const notifyUpdate = (auto = true) => {
             const worker = registration.waiting;
-            if (!worker || !navigator.serviceWorker.controller || worker === dismissedWorker || prompt) return;
+            if (!worker || !navigator.serviceWorker.controller || applying || reloadStarted || worker === dismissedWorker || prompt) return;
+            // A fresh load opens at the ready screen. Do not interrupt a running or paused game.
+            if (auto && state === "ready" && !busy && !document.hidden && !$("hub").open && !$("help-dialog").open) {
+              applyUpdate(worker);
+              return;
+            }
             prompt = document.createElement("section");
             prompt.className = "sweet-update";
             prompt.setAttribute("aria-label", "Game update available");
             prompt.innerHTML = `<strong>🍭 Update available!</strong><p class="update-status" role="status">A sweeter version is ready. Update when you are ready.</p><div><button type="button" class="update-now">Update now</button><button type="button" class="update-later">Later</button></div>`;
             document.body.append(prompt);
-            const now = prompt.querySelector(".update-now"), later = prompt.querySelector(".update-later"), status = prompt.querySelector(".update-status");
-            later.onclick = () => { dismissedWorker = worker; prompt.remove(); prompt = null; };
-            now.onclick = async () => {
-              if (applying) return;
-              applying = true; now.disabled = later.disabled = true;
-              status.textContent = "Saving your game…";
-              await waitForIdle();
-              const waiting = registration.waiting;
-              if (!waiting) { location.reload(); return; }
-              status.textContent = "Installing update…";
-              waiting.postMessage({ type: "SKIP_WAITING" });
-              setTimeout(() => {
-                if (!applying || !prompt) return;
-                applying = false; now.disabled = later.disabled = false;
-                status.textContent = "Update has not activated yet. Try again or reopen Sweet Swap.";
-              }, 12000);
-            };
+            prompt.querySelector(".update-later").onclick = () => { dismissedWorker = worker; prompt.remove(); prompt = null; };
+            prompt.querySelector(".update-now").onclick = () => applyUpdate(worker);
           };
-          registration.addEventListener('updatefound', () => {
-            registration.installing?.addEventListener('statechange', notifyUpdate);
+          const watchInstalling = () => {
+            const worker = registration.installing;
+            if (!worker || watched.has(worker)) return;
+            watched.add(worker);
+            worker.addEventListener("statechange", () => notifyUpdate());
+          };
+          registration.addEventListener("updatefound", watchInstalling);
+          const checkForUpdate = () => {
+            watchInstalling();
+            notifyUpdate();
+            if (checking || applying || reloadStarted || navigator.onLine === false) return checking;
+            checking = registration.update().catch(error => {
+              // Offline or failed download: the active release remains usable.
+              console.debug("Sweet Swap update check deferred:", error);
+            }).finally(() => {
+              checking = null;
+              watchInstalling();
+              notifyUpdate();
+            });
+            return checking;
+          };
+          window.addEventListener("online", checkForUpdate);
+          window.addEventListener("pageshow", checkForUpdate);
+          document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) checkForUpdate();
           });
-          await registration.update();
-          notifyUpdate();
+          setInterval(() => { if (!document.hidden) checkForUpdate(); }, 60000);
+          checkForUpdate();
         } catch (error) {
           console.error(
             "Sweet Swap: Service Worker registration failed:",
@@ -2243,8 +2289,8 @@ document.addEventListener("DOMContentLoaded", () => {
           );
         }
       };
-      if (document.readyState === "complete") registerWorker();
-      else window.addEventListener("load", registerWorker, { once: true });
+      // DOM is already ready; do not wait for audio or other resources to load.
+      registerWorker();
     }
   }
   reset();
