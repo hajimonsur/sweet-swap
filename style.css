@@ -1312,3 +1312,9 @@ body[data-theme="gold"] {
 @media (max-width:699px) { .game-container header .header-actions { gap:5px; } .header-actions span { font-size:11px; } #coin-btn,#finish-btn { padding:2px 6px; font-size:12px; } }
 @media (max-width:350px) { .header-actions span { display:none; } }
 @media (prefers-reduced-motion:reduce) { .coin-float { animation:none; } }
+
+/* Direct swipe feedback: no transition lag during finger tracking. */
+#game-board { touch-action: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.cell.swipe-source { z-index: 7; background: #ffffff35; cursor: grabbing; }
+.cell.swipe-neighbor { z-index: 6; }
+.cell.swipe-source .candy, .cell.swipe-neighbor .candy { transition: none; will-change: transform; filter: brightness(1.12); }

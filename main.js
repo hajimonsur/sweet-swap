@@ -1059,7 +1059,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   }
-  async function swapAnimation(a, b) {
+  async function swapAnimation(a, b, progress = 0) {
     const A = cells[a],
       B = cells[b],
       ra = A.getBoundingClientRect(),
@@ -1071,25 +1071,26 @@ document.addEventListener("DOMContentLoaded", () => {
       animate(
         A.firstElementChild,
         [
-          { transform: "translate(0,0)" },
+          { transform: `translate(${dx * progress}px,${dy * progress}px)` },
           { transform: `translate(${dx}px,${dy}px)` },
         ],
-        150,
+        Math.max(65, 170 * (1 - progress)),
       ),
       animate(
         B.firstElementChild,
         [
-          { transform: "translate(0,0)" },
+          { transform: `translate(${-dx * progress}px,${-dy * progress}px)` },
           { transform: `translate(${-dx}px,${-dy}px)` },
         ],
-        150,
+        Math.max(65, 170 * (1 - progress)),
       ),
     ]);
     A.style.zIndex = B.style.zIndex = "";
   }
-  async function move(a, b) {
+  async function move(a, b, progress = 0) {
     if (!playable() || !adjacent(a, b) || blocked(a) || blocked(b) || booster)
       return;
+    cancelSwipe();
     stableCheckpoint();
     const before = snapshot(), financialBefore = finance();
     const hadChocolate = Object.keys(obstacles).length;
@@ -1103,7 +1104,7 @@ document.addEventListener("DOMContentLoaded", () => {
     update();
     tone("swap");
     try {
-      await swapAnimation(a, b);
+      await swapAnimation(a, b, progress);
       if (!current(v)) return;
       swap(grid, a, b);
       render();
@@ -1225,47 +1226,98 @@ document.addEventListener("DOMContentLoaded", () => {
     render();
     scheduleHint();
   }
+  // Direct manipulation: preview the swap while the finger is moving.
+  function clearSwipePreview(p) {
+    if (!p) return;
+    for (const i of [p.i, p.target]) {
+      const cell = cells[i];
+      if (!cell) continue;
+      cell.classList.remove("swipe-source", "swipe-neighbor");
+      cell.firstElementChild.style.transform = "";
+    }
+  }
+  function cancelSwipe() {
+    const p = pointer;
+    pointer = null;
+    if (!p) return;
+    clearSwipePreview(p);
+    if (board.hasPointerCapture(p.id)) board.releasePointerCapture(p.id);
+  }
+  function previewSwipe(p, e) {
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (!p.axis && Math.max(Math.abs(dx), Math.abs(dy)) >= 4)
+      p.axis = Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
+    if (!p.axis) return;
+    const distance = p.axis === "x" ? dx : dy;
+    const target = p.i + Math.sign(distance) * (p.axis === "x" ? 1 : N);
+    clearSwipePreview(p);
+    p.target = -1;
+    p.progress = 0;
+    const source = cells[p.i];
+    source.classList.add("swipe-source");
+    if (!distance || !adjacent(p.i, target) || blocked(p.i) || blocked(target)) return;
+    const a = source.getBoundingClientRect(), b = cells[target].getBoundingClientRect();
+    const x = b.left - a.left, y = b.top - a.top;
+    const step = Math.hypot(x, y);
+    if (!step) return;
+    p.target = target;
+    p.progress = Math.min(1, Math.abs(distance) / step);
+    cells[target].classList.add("swipe-neighbor");
+    if (!reduced) {
+      source.firstElementChild.style.transform = `translate(${x * p.progress}px,${y * p.progress}px)`;
+      cells[target].firstElementChild.style.transform = `translate(${-x * p.progress}px,${-y * p.progress}px)`;
+    }
+  }
+  function commitSwipe(p) {
+    const target = p.target, progress = reduced ? 0 : p.progress;
+    cancelSwipe();
+    vibrate(12);
+    move(p.i, target, progress);
+  }
   board.addEventListener("pointerdown", (e) => {
-    if (!playable() || !e.isPrimary || e.button !== 0) return;
+    if (!playable() || pointer || !e.isPrimary || e.button !== 0) return;
     const c = e.target.closest(".cell");
     if (!c) return;
     unlockAudio();
-    pointer = {
-      id: e.pointerId,
-      i: Number(c.dataset.index),
-      x: e.clientX,
-      y: e.clientY,
-    };
+    pointer = { id: e.pointerId, i: Number(c.dataset.index), x: e.clientX, y: e.clientY, axis: null, target: -1, progress: 0 };
     board.setPointerCapture(e.pointerId);
     clearHint();
   });
-  board.addEventListener("pointerup", (e) => {
-    if (!pointer || pointer.id !== e.pointerId) return;
+  board.addEventListener("pointermove", (e) => {
     const p = pointer;
-    pointer = null;
-    if (board.hasPointerCapture(e.pointerId))
-      board.releasePointerCapture(e.pointerId);
-    if (!playable()) return;
-    const dx = e.clientX - p.x,
-      dy = e.clientY - p.y;
-    if (
-      booster ||
-      Math.hypot(dx, dy) < Math.max(10, cells[p.i].offsetWidth * 0.25)
-    ) {
-      select(p.i);
+    if (!p || p.id !== e.pointerId || booster) return;
+    if (!playable()) { cancelSwipe(); return; }
+    previewSwipe(p, e);
+    // Commit once the finger crosses 48% of the distance to the next tile.
+    if (p.target >= 0 && p.progress >= 0.48) commitSwipe(p);
+  });
+  board.addEventListener("pointerup", (e) => {
+    const p = pointer;
+    if (!p || p.id !== e.pointerId) return;
+    if (!playable()) { cancelSwipe(); return; }
+    if (!booster) previewSwipe(p, e);
+    if (!booster && p.target >= 0 && p.progress >= 0.24) {
+      commitSwipe(p);
       return;
     }
-    const target =
-      p.i + (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : -1) : dy > 0 ? N : -N);
-    if (adjacent(p.i, target)) move(p.i, target);
-    else scheduleHint();
+    const tap = booster || Math.hypot(e.clientX-p.x,e.clientY-p.y) < Math.max(8,cells[p.i].offsetWidth*0.2);
+    const transforms = [p.i,p.target].filter(i=>i>=0).map(i=>[cells[i].firstElementChild,cells[i].firstElementChild.style.transform]);
+    cancelSwipe();
+    if (tap) select(p.i);
+    else {
+      for (const [el, transform] of transforms) if (transform) animate(el,[{transform},{transform:"translate(0,0)"}],140);
+      scheduleHint();
+    }
   });
-  board.addEventListener("pointercancel", () => {
-    pointer = null;
+  board.addEventListener("pointercancel", (e) => {
+    if (pointer?.id !== e.pointerId) return;
+    cancelSwipe();
     scheduleHint();
   });
-  board.addEventListener("lostpointercapture", () => {
-    pointer = null;
+  board.addEventListener("lostpointercapture", (e) => {
+    if (pointer?.id !== e.pointerId) return;
+    cancelSwipe();
+    scheduleHint();
   });
   board.addEventListener("click", (e) => {
     if (e.detail !== 0) return;
@@ -1338,6 +1390,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
   function finish(reason = "time") {
+    cancelSwipe();
     if (state !== "playing") return;
     state = reason === "won" ? "stagewon" : "over";
     syncMusic();
@@ -1425,6 +1478,7 @@ document.addEventListener("DOMContentLoaded", () => {
     $("overlay-btn").focus();
   }
   function reset(start = false) {
+    cancelSwipe();
     invalidateUndo();
     runRewards = {}; runSpecials = 0;
     $('results').hidden = true;
@@ -1498,6 +1552,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function pause() {
     if (!playable()) return;
+    cancelSwipe();
     tick();
     if (state !== "playing") return;
     state = "paused";
