@@ -24,7 +24,11 @@
     <div id="game-message" role="status">Match 3 or more candies!</div>
     <div class="board-slot">
       <div class="board-wrapper">
-        <div id="game-board" aria-label="Candy board"></div>
+        <div id="game-board" aria-label="Candy board">
+          <div id="board-tiles" class="board-layer"></div>
+          <div id="board-candies" class="board-layer" aria-hidden="true"></div>
+          <div id="board-obstacles" class="board-layer" aria-hidden="true"></div>
+        </div>
         <div id="effects" aria-hidden="true"></div>
         <div id="overlay" class="overlay">
           <div class="overlay-content">

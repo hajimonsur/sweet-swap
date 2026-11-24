@@ -516,37 +516,52 @@ document.addEventListener("DOMContentLoaded", () => {
     } while (!legalMove(g));
     return g;
   }
+  // Logical grid, hit targets, and persistent animated sprites are independent.
+  const tiles = $("board-tiles"), candyLayer = $("board-candies"), obstacleLayer = $("board-obstacles");
+  let sprites = [], markers = [], spriteByCandy = new Map();
+  function placeSprite(el, i) {
+    el.style.gridColumn = `${col(i) + 1} / span 1`;
+    el.style.gridRow = `${row(i) + 1} / span 1`;
+    el.dataset.index = String(i);
+  }
   function createBoard() {
-    board.replaceChildren();
-    cells = [];
+    tiles.replaceChildren(); candyLayer.replaceChildren(); obstacleLayer.replaceChildren();
+    cells = []; sprites = []; markers = []; spriteByCandy.clear();
     for (let i = 0; i < 64; i++) {
       const cell = document.createElement("button");
-      cell.type = "button";
-      cell.className = "cell";
-      cell.dataset.index = i;
-      const candy = document.createElement("span");
-      candy.className = "candy";
-      cell.append(candy);
-      board.append(cell);
-      cells.push(cell);
+      cell.type = "button"; cell.className = "cell"; cell.dataset.index = i;
+      tiles.append(cell); cells.push(cell);
+      const marker = document.createElement("div");
+      marker.className = "cell obstacle-marker";
+      obstacleLayer.append(marker); markers.push(marker);
     }
   }
   function render() {
-    cells.forEach((cell, i) => {
-      const c = grid[i],
-        el = cell.firstElementChild;
-      el.className =
-        "candy" +
-        (c ? " " + c.color + (c.special ? " special-" + c.special : "") : "");
-      el.style.visibility = c ? "visible" : "hidden";
-      cell.dataset.obstacle = obstacles[i] || "";
-      cell.classList.toggle("selected", i === selected);
+    const live = new Set(grid.filter(Boolean));
+    for (const [c, el] of spriteByCandy) if (!live.has(c)) { el.remove(); spriteByCandy.delete(c); }
+    sprites = grid.map((c,i) => {
+      if (!c) return null;
+      let el = spriteByCandy.get(c);
+      if (!el) {
+        el = document.createElement("div"); el.className = "candy-sprite";
+        const face = document.createElement("span"); face.className = "candy";
+        el.append(face); candyLayer.append(el); spriteByCandy.set(c, el);
+      }
+      placeSprite(el,i);
+      const face = el.firstElementChild;
+      const appearance = "candy " + c.color + (c.special ? " special-" + c.special : "");
+      if (face.className !== appearance) face.className = appearance;
+      el.classList.toggle("sprite-selected", i === selected);
+      el.classList.remove("sprite-hint");
+      return el;
+    });
+    cells.forEach((cell,i) => {
+      const c = grid[i];
+      markers[i].dataset.obstacle = obstacles[i] || "";
+      cell.classList.toggle("selected",i === selected);
       cell.classList.remove("hint");
-      cell.setAttribute(
-        "aria-label",
-        `${c?.color || "Empty"} ${c?.special || ""} candy, row ${row(i) + 1}, column ${col(i) + 1}`,
-      );
-      cell.setAttribute("aria-pressed", String(i === selected));
+      cell.setAttribute("aria-label", `${c?.color || "Empty"} ${c?.special || ""} candy, row ${row(i)+1}, column ${col(i)+1}`);
+      cell.setAttribute("aria-pressed",String(i === selected));
     });
   }
   function message(text, ms = 2200) {
@@ -925,42 +940,24 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   async function drop(v) {
     const falls = new Map();
-    const nodes = new Map(grid.flatMap((c,i) => c ? [[c,cells[i].firstElementChild]] : []));
     for (let c = 0; c < N; c++) {
       let w = N - 1;
       for (let r = N - 1; r >= 0; r--) {
         const i = r * N + c;
-        if (grid[i]) {
-          const j = w * N + c;
-          grid[j] = grid[i];
-          if (j !== i) {
-            grid[i] = null;
-            falls.set(j, w - r);
-          }
-          w--;
-        }
-      }
-      const missing = w + 1;
-      while (w >= 0) {
-        const i = w * N + c;
-        grid[i] = random();
-        falls.set(i, missing);
+        if (!grid[i]) continue;
+        const j = w * N + c;
+        grid[j] = grid[i];
+        if (j !== i) { grid[i] = null; falls.set(j,w-r); }
         w--;
       }
+      const missing = w + 1;
+      while (w >= 0) { const i = w*N+c; grid[i]=random(); falls.set(i,missing); w--; }
     }
     if (!current(v)) return;
-    const nextNodes = grid.map(c => nodes.get(c) || document.createElement('span'));
-    // Detach before reparenting, then paint all positions in the same frame.
-    for (const cell of cells) cell.replaceChildren();
-    nextNodes.forEach((el,i) => {
-      el.style.transform = '';
-      el.style.opacity = '';
-      cells[i].append(el);
-    });
-    render();
-    const step = cells[N].getBoundingClientRect().top - cells[0].getBoundingClientRect().top;
-    const items = [...falls].map(([i,d]) => ({el:nextNodes[i],x:0,y:-d*step}));
-    if (items.length) await glide(items, Math.min(440, 260 + Math.max(...falls.values())*22), v);
+    render(); // Existing sprites stay mounted; only their logical destination changes.
+    const step = cells[N].getBoundingClientRect().top-cells[0].getBoundingClientRect().top;
+    const items = [...falls].map(([i,d]) => ({el:sprites[i],x:0,y:-d*step}));
+    if (items.length) await glide(items, Math.min(580,300+Math.max(...falls.values())*35),v,true);
     if (current(v)) for (const {el} of items) el.style.transform = '';
   }
 
@@ -1023,7 +1020,7 @@ document.addEventListener("DOMContentLoaded", () => {
       award(points, removed.length, ids[0], (matchPlan.matchReward || 0) + rainbowReward);
       ids.forEach((i) => {
         burst(i, PALETTE[COLORS.indexOf(grid[i]?.color)] || "#fff");
-        cells[i].firstElementChild.classList.add("match");
+        sprites[i]?.firstElementChild.classList.add("match");
       });
       if (created.size) {
         const s = [...created.values()][0].special;
@@ -1061,14 +1058,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
   // Keep the same visible candy node throughout the entire journey.
-  function glide(items, duration, v = version) {
+  function glide(items, duration, v = version, gravity = false) {
     const started = performance.now();
     for (const {el, x, y} of items) el.style.transform = `translate3d(${x}px,${y}px,0)`;
     return new Promise(resolve => {
       function frame(now) {
         if (v !== version) { resolve(false); return; }
         const t = Math.min(1, (now - started) / duration);
-        const eased = 1 - Math.pow(1 - t, 2);
+        const eased = gravity ? (t < .84 ? Math.pow(t/.84, 2) : 1 + .025*Math.sin((t-.84)/.16*Math.PI)) : 1 - Math.pow(1 - t, 2);
         for (const {el, x, y, endX = 0, endY = 0} of items) {
           el.style.transform = `translate3d(${x+(endX-x)*eased}px,${y+(endY-y)*eased}px,0)`;
         }
@@ -1079,19 +1076,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   async function swapAnimation(a, b, progress = 0) {
-    const A = cells[a], B = cells[b], x = A.firstElementChild, y = B.firstElementChild;
-    const ra = A.getBoundingClientRect(), rb = B.getBoundingClientRect();
+    const x = sprites[a], y = sprites[b];
+    const ra = cells[a].getBoundingClientRect(), rb = cells[b].getBoundingClientRect();
     const dx = rb.left-ra.left, dy = rb.top-ra.top;
-    A.style.zIndex = B.style.zIndex = 12;
+    x.style.zIndex = '4'; y.style.zIndex = '3';
     const done = await glide([
       {el:x,x:dx*progress,y:dy*progress,endX:dx,endY:dy},
       {el:y,x:-dx*progress,y:-dy*progress,endX:-dx,endY:-dy}
-    ], Math.max(180, 280*(1-progress)));
-    if (done && x.parentNode===A && y.parentNode===B) {
-      A.append(y); B.append(x);
+    ], Math.max(120, 230*(1-progress)));
+    if (done) {
+      // Set the destination and clear the relative transform in the same frame.
+      placeSprite(x,b); placeSprite(y,a);
       x.style.transform = y.style.transform = '';
     }
-    A.style.zIndex = B.style.zIndex = '';
+    x.style.zIndex = y.style.zIndex = '';
   }
   async function move(a, b, progress = 0) {
     if (!playable() || !adjacent(a, b) || blocked(a) || blocked(b) || booster)
@@ -1241,7 +1239,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const cell = cells[i];
       if (!cell) continue;
       cell.classList.remove("swipe-source", "swipe-neighbor");
-      cell.firstElementChild.style.transform = "";
+      if (sprites[i]) { sprites[i].style.transform = ""; sprites[i].style.zIndex = ""; }
     }
   }
   function cancelSwipe() {
@@ -1256,8 +1254,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const source = cells[p.i];
     if (!source) return;
     const rect = source.getBoundingClientRect();
-    const stepX = rect.width + (parseFloat(getComputedStyle(board).columnGap) || 0);
-    const stepY = rect.height + (parseFloat(getComputedStyle(board).rowGap) || 0);
+    const stepX = rect.width + (parseFloat(getComputedStyle(tiles).columnGap) || 0);
+    const stepY = rect.height + (parseFloat(getComputedStyle(tiles).rowGap) || 0);
     const clamp = (n, limit) => Math.max(-limit, Math.min(limit, n));
     // Direct manipulation is essential interaction feedback, even with Reduce Motion.
     if ((!p.axis) && Math.max(Math.abs(dx), Math.abs(dy)) >= 3)
@@ -1267,7 +1265,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const valid = adjacent(p.i, target) && !blocked(p.i) && !blocked(target);
     if (p.target !== target && cells[p.target]) {
       cells[p.target].classList.remove("swipe-neighbor");
-      cells[p.target].firstElementChild.style.transform = "";
+      sprites[p.target].style.transform = ""; sprites[p.target].style.zIndex = "";
     }
     p.target = valid ? target : -1;
     p.progress = 0;
@@ -1280,13 +1278,15 @@ document.addEventListener("DOMContentLoaded", () => {
       if (step) {
         p.progress = Math.min(1, Math.abs(distance) / step);
         other.classList.add("swipe-neighbor");
-        other.firstElementChild.style.transform = `translate3d(${-sx * p.progress}px,${-sy * p.progress}px,0)`;
+        sprites[target].style.zIndex = "3";
+        sprites[target].style.transform = `translate3d(${-sx * p.progress}px,${-sy * p.progress}px,0)`;
         // Keep the held candy under the finger, with soft resistance past one tile.
         if (p.axis === "x") { x = sx * p.progress + clamp(dx - sx * p.progress, stepX * .18) * .4; y *= .25; }
         else { y = sy * p.progress + clamp(dy - sy * p.progress, stepY * .18) * .4; x *= .25; }
       }
     } else { x *= .28; y *= .28; }
-    source.firstElementChild.style.transform = `translate3d(${x}px,${y}px,0) scale(1.04)`;
+    sprites[p.i].style.zIndex = "4";
+    sprites[p.i].style.transform = `translate3d(${x}px,${y}px,0) scale(1.04)`;
   }
   function commitSwipe(p) {
     const target = p.target, progress = p.progress;
@@ -1304,7 +1304,8 @@ document.addEventListener("DOMContentLoaded", () => {
     board.setPointerCapture(e.pointerId);
     if (!booster) {
       c.classList.add("swipe-source");
-      c.firstElementChild.style.transform = "scale(1.04)";
+      sprites[pointer.i].style.zIndex = "4";
+      sprites[pointer.i].style.transform = "scale(1.04)";
     }
     clearHint();
   });
@@ -1328,7 +1329,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     const tap = booster || (!p.axis && Math.hypot(e.clientX-p.x,e.clientY-p.y) < 8);
-    const transforms = [p.i,p.target].filter(i=>i>=0).map(i=>[cells[i].firstElementChild,cells[i].firstElementChild.style.transform]);
+    const transforms = [p.i,p.target].filter(i=>i>=0).map(i=>[sprites[i],sprites[i].style.transform]);
     cancelSwipe();
     if (tap) select(p.i);
     else {
@@ -1374,16 +1375,18 @@ document.addEventListener("DOMContentLoaded", () => {
     clearTimeout(hintTimer);
     clearTimeout(idleTimer);
     cells.forEach((c) => c.classList.remove("hint"));
+    sprites.forEach(el => el?.classList.remove("sprite-hint"));
   }
   function hint() {
     if (!playable()) return;
     clearHint();
     const m = legalMove();
     if (!m) return;
-    m.forEach((i) => cells[i].classList.add("hint"));
+    m.forEach((i) => { cells[i].classList.add("hint"); sprites[i]?.classList.add("sprite-hint"); });
     message("💡 Swap the glowing candies!");
     hintTimer = setTimeout(() => {
       cells.forEach((c) => c.classList.remove("hint"));
+    sprites.forEach(el => el?.classList.remove("sprite-hint"));
     }, 2500);
   }
   function scheduleHint() {
@@ -1523,6 +1526,7 @@ document.addEventListener("DOMContentLoaded", () => {
     cells.forEach((c) =>
       c.getAnimations?.({ subtree: true }).forEach((a) => a.cancel()),
     );
+    candyLayer.getAnimations?.({subtree:true}).forEach(a => a.cancel());
     effects.replaceChildren();
     score = 0;
     collected = activated = 0;

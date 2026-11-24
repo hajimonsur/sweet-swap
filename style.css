@@ -1352,3 +1352,18 @@ body[data-theme="gold"] {
 #game-board .cell { overflow: visible; }
 #game-board.motion-resolving .candy, #game-board .cell.swipe-source .candy, #game-board .cell.swipe-neighbor .candy { transition: none !important; will-change: transform; }
 #game-board.motion-resolving .cell:hover .candy { filter: none; }
+
+/* Layered board: stationary hit targets, independent moving sprites, obstacle overlay. */
+#game-board { display:block; position:relative; isolation:isolate; touch-action:none; }
+#game-board > .board-layer { position:absolute; inset:0; display:grid; grid-template:repeat(8,minmax(0,1fr))/repeat(8,minmax(0,1fr)); gap:inherit; padding:inherit; box-sizing:border-box; }
+#board-tiles { z-index:1; }
+#board-candies { z-index:2; pointer-events:none; }
+#board-obstacles { z-index:3; pointer-events:none; }
+#board-tiles .cell { cursor:grab; }
+#board-obstacles .obstacle-marker { background:none; box-shadow:none; padding:0; border:0; }
+#board-candies .candy-sprite { position:absolute; inset:0; margin:clamp(1px,.65cqw,4px); pointer-events:none; transform-origin:center; will-change:transform; }
+#board-candies .candy { width:100%; height:100%; transition:none; }
+#board-candies .sprite-selected .candy { filter:brightness(1.13); }
+#board-candies .sprite-hint .candy { animation:hint .5s infinite alternate; }
+#game-board .candy.match { animation:pop .23s ease forwards !important; }
+@media(prefers-reduced-motion:reduce){ #game-board .candy.match { animation-duration:230ms !important; } }
