@@ -673,10 +673,10 @@ document.addEventListener("DOMContentLoaded", () => {
       o.stop(t + 0.16);
     });
   }
-  function animate(el, frames, duration) {
-    if (reduced || !el.animate) return Promise.resolve();
+  function animate(el, frames, duration, essential = false) {
+    if ((!essential && reduced) || !el.animate) return Promise.resolve();
     return el
-      .animate(frames, { duration, easing: "ease-in-out" })
+      .animate(frames, { duration, easing: essential ? "cubic-bezier(.2,.65,.35,1)" : "ease-in-out" })
       .finished.catch(() => {});
   }
   function burst(i, color, count = 9) {
@@ -949,16 +949,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (!current(v)) return;
     render();
-    const step = cells[N].offsetTop - cells[0].offsetTop;
+    const step = cells[N].getBoundingClientRect().top - cells[0].getBoundingClientRect().top;
     await Promise.all(
       [...falls].map(([i, d]) =>
         animate(
           cells[i].firstElementChild,
           [
-            { transform: `translateY(${-d * step}px)`, opacity: 0.6 },
+            { transform: `translateY(${-d * step}px)`, opacity: 1 },
             { transform: "translateY(0)", opacity: 1 },
           ],
-          240,
+          Math.min(480, 240 + d * 25),
+          true,
         ),
       ),
     );
@@ -1035,7 +1036,7 @@ document.addEventListener("DOMContentLoaded", () => {
           2600,
         );
       }
-      await wait(235);
+      await new Promise(resolve => setTimeout(resolve, 235));
       if (!current(v)) return;
       ids.forEach((i) => (grid[i] = created.get(i) || null));
       await drop(v);
@@ -1074,7 +1075,8 @@ document.addEventListener("DOMContentLoaded", () => {
           { transform: `translate(${dx * progress}px,${dy * progress}px)` },
           { transform: `translate(${dx}px,${dy}px)` },
         ],
-        Math.max(75, 165 * (1 - progress)),
+        Math.max(130, 260 * (1 - progress)),
+        true,
       ),
       animate(
         B.firstElementChild,
@@ -1082,7 +1084,8 @@ document.addEventListener("DOMContentLoaded", () => {
           { transform: `translate(${-dx * progress}px,${-dy * progress}px)` },
           { transform: `translate(${-dx}px,${-dy}px)` },
         ],
-        Math.max(75, 165 * (1 - progress)),
+        Math.max(130, 260 * (1 - progress)),
+        true,
       ),
     ]);
     A.style.zIndex = B.style.zIndex = "";
@@ -1098,6 +1101,7 @@ document.addEventListener("DOMContentLoaded", () => {
       activeAtStart = rushActive(),
       rushAtStart = rushGeneration;
     busy = true;
+    board.classList.add("motion-resolving");
     selected = -1;
     clearHint();
     render();
@@ -1194,6 +1198,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     } finally {
+      board.classList.remove("motion-resolving");
       if (current(v)) {
         busy = false;
         combo = 1;
@@ -1324,7 +1329,7 @@ document.addEventListener("DOMContentLoaded", () => {
     cancelSwipe();
     if (tap) select(p.i);
     else {
-      for (const [el, transform] of transforms) if (transform) animate(el,[{transform},{transform:"translate(0,0)"}],140);
+      for (const [el, transform] of transforms) if (transform) animate(el,[{transform},{transform:"translate(0,0)"}],140,true);
       scheduleHint();
     }
   });

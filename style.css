@@ -1340,3 +1340,10 @@ body[data-theme="gold"] {
 /* Fast directional flick interaction. */
 #game-board, #game-board .cell { touch-action: none; user-select: none; -webkit-user-select: none; }
 #game-board .cell.swipe-source { background: #ffffff24; }
+
+/* Essential board motion is gameplay feedback, not decorative animation. */
+#game-board.motion-resolving .candy { transition: none; }
+#game-board.motion-resolving .cell:hover .candy:not(.match) { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  #game-board .candy.match { animation-duration: 230ms !important; }
+}
