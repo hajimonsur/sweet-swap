@@ -1318,3 +1318,16 @@ body[data-theme="gold"] {
 .cell.swipe-source { z-index: 7; background: #ffffff35; cursor: grabbing; }
 .cell.swipe-neighbor { z-index: 6; }
 .cell.swipe-source .candy, .cell.swipe-neighbor .candy { transition: none; will-change: transform; filter: brightness(1.12); }
+
+/* Drag-and-release: the held candy stays above its neighbours. */
+#game-board .cell.swipe-source { z-index: 9; background: #ffffff45; }
+#game-board .cell.swipe-neighbor { z-index: 8; }
+#game-board .cell.swipe-source .candy,
+#game-board .cell.swipe-neighbor .candy { transition: none !important; animation: none; filter: brightness(1.14); }
+#game-board .cell.swipe-source .candy { box-shadow: inset 0 2px 3px #fff9, 0 5px 12px #160139cc, 0 0 9px #fff7; }
+.sweet-update { position: fixed; z-index: 100; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); width: min(350px, calc(100vw - 24px)); padding: 15px; border: 2px solid #ffd967; border-radius: 18px; background: #38136ef5; color: white; text-align: center; box-shadow: 0 8px 28px #160139aa; }
+.sweet-update strong { color: #ffe43b; font-size: 20px; }
+.sweet-update p { margin: 8px 0 12px; font-size: 15px; line-height: 1.35; }
+.sweet-update div { display: flex; gap: 8px; justify-content: center; }
+.sweet-update button { border: 1px solid #fff8; border-radius: 999px; padding: 9px 15px; font-weight: 900; background: #6325a6; }
+.sweet-update .update-now { color: #38136e; background: #ffe43b; }

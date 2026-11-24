@@ -1074,7 +1074,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { transform: `translate(${dx * progress}px,${dy * progress}px)` },
           { transform: `translate(${dx}px,${dy}px)` },
         ],
-        Math.max(65, 170 * (1 - progress)),
+        Math.max(90, 220 * (1 - progress)),
       ),
       animate(
         B.firstElementChild,
@@ -1082,7 +1082,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { transform: `translate(${-dx * progress}px,${-dy * progress}px)` },
           { transform: `translate(${-dx}px,${-dy}px)` },
         ],
-        Math.max(65, 170 * (1 - progress)),
+        Math.max(90, 220 * (1 - progress)),
       ),
     ]);
     A.style.zIndex = B.style.zIndex = "";
@@ -1245,7 +1245,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function previewSwipe(p, e) {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
-    if (!p.axis && Math.max(Math.abs(dx), Math.abs(dy)) >= 4)
+    // Allow direction correction until the finger is well into the drag.
+    if ((!p.axis || p.progress < 0.2) && Math.max(Math.abs(dx), Math.abs(dy)) >= 3)
       p.axis = Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
     if (!p.axis) return;
     const distance = p.axis === "x" ? dx : dy;
@@ -1281,6 +1282,7 @@ document.addEventListener("DOMContentLoaded", () => {
     unlockAudio();
     pointer = { id: e.pointerId, i: Number(c.dataset.index), x: e.clientX, y: e.clientY, axis: null, target: -1, progress: 0 };
     board.setPointerCapture(e.pointerId);
+    c.classList.add("swipe-source");
     clearHint();
   });
   board.addEventListener("pointermove", (e) => {
@@ -1288,19 +1290,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!p || p.id !== e.pointerId || booster) return;
     if (!playable()) { cancelSwipe(); return; }
     previewSwipe(p, e);
-    // Commit once the finger crosses 48% of the distance to the next tile.
-    if (p.target >= 0 && p.progress >= 0.48) commitSwipe(p);
+    // Keep following the finger until release, even after a full tile drag.
+    // Never commit early: the player can reverse or cancel the gesture.
   });
   board.addEventListener("pointerup", (e) => {
     const p = pointer;
     if (!p || p.id !== e.pointerId) return;
     if (!playable()) { cancelSwipe(); return; }
     if (!booster) previewSwipe(p, e);
-    if (!booster && p.target >= 0 && p.progress >= 0.24) {
+    if (!booster && p.target >= 0 && p.progress >= 0.30) {
       commitSwipe(p);
       return;
     }
-    const tap = booster || Math.hypot(e.clientX-p.x,e.clientY-p.y) < Math.max(8,cells[p.i].offsetWidth*0.2);
+    const tap = booster || (!p.axis && Math.hypot(e.clientX-p.x,e.clientY-p.y) < 8);
     const transforms = [p.i,p.target].filter(i=>i>=0).map(i=>[cells[i].firstElementChild,cells[i].firstElementChild.style.transform]);
     cancelSwipe();
     if (tap) select(p.i);
@@ -2160,12 +2162,45 @@ document.addEventListener("DOMContentLoaded", () => {
               updateViaCache: "none",
             },
           );
+          let prompt = null, applying = false, dismissedWorker = null;
+          let hadController = Boolean(navigator.serviceWorker.controller);
+          const waitForIdle = async () => {
+            while (busy) await new Promise(resolve => setTimeout(resolve, 100));
+            cancelSwipe();
+            if (state === "playing") pause();
+            saveGame();
+          };
+          navigator.serviceWorker.addEventListener("controllerchange", async () => {
+            if (!hadController && !applying) { hadController = true; return; }
+            if (prompt) prompt.querySelector(".update-status").textContent = "Saving and opening the new version…";
+            await waitForIdle();
+            location.reload();
+          });
           const notifyUpdate = () => {
-            if (registration.waiting && navigator.serviceWorker.controller) {
-              console.info('Sweet Swap update ready. Save your game, close all game tabs and reopen to update.');
-              $('coin-btn').title = 'Update ready: save, close all game tabs, then reopen.';
-              if (state === 'ready') message('Update ready — close all game tabs and reopen.', 0);
-            }
+            const worker = registration.waiting;
+            if (!worker || !navigator.serviceWorker.controller || worker === dismissedWorker || prompt) return;
+            prompt = document.createElement("section");
+            prompt.className = "sweet-update";
+            prompt.setAttribute("aria-label", "Game update available");
+            prompt.innerHTML = `<strong>🍭 Update available!</strong><p class="update-status" role="status">A sweeter version is ready. Update when you are ready.</p><div><button type="button" class="update-now">Update now</button><button type="button" class="update-later">Later</button></div>`;
+            document.body.append(prompt);
+            const now = prompt.querySelector(".update-now"), later = prompt.querySelector(".update-later"), status = prompt.querySelector(".update-status");
+            later.onclick = () => { dismissedWorker = worker; prompt.remove(); prompt = null; };
+            now.onclick = async () => {
+              if (applying) return;
+              applying = true; now.disabled = later.disabled = true;
+              status.textContent = "Saving your game…";
+              await waitForIdle();
+              const waiting = registration.waiting;
+              if (!waiting) { location.reload(); return; }
+              status.textContent = "Installing update…";
+              waiting.postMessage({ type: "SKIP_WAITING" });
+              setTimeout(() => {
+                if (!applying || !prompt) return;
+                applying = false; now.disabled = later.disabled = false;
+                status.textContent = "Update has not activated yet. Try again or reopen Sweet Swap.";
+              }, 12000);
+            };
           };
           registration.addEventListener('updatefound', () => {
             registration.installing?.addEventListener('statechange', notifyUpdate);

@@ -1,5 +1,5 @@
 /* Sweet Swap: release-scoped offline assets. Increment RELEASE for each deployment. */
-const RELEASE = '2026-11-24-swipe-1';
+const RELEASE = '2026-11-24-drag-2';
 const CACHE = 'sweet-swap-' + RELEASE;
 const root = self.registration.scope;
 const asset = name => new URL(name, root).href;
@@ -9,6 +9,9 @@ self.addEventListener('install', event => {
   // Install the complete release or keep the previous working release.
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(files.map(name => new Request(asset(name), {cache:'reload'})))));
   // No skipWaiting: never replace a worker in the middle of an active game.
+});
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
 });
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
