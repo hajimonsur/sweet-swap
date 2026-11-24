@@ -1,30 +1,74 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sweet Swap Game</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#7516bc">
+<title>Sweet Swap</title><link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-
-    <!-- Game Title -->
-    <h1>Sweet Swap</h1>
-
-    <!-- Score & Timer Display -->
-    <h3>Time: <span id="timer">180</span>s | 
-        Score: <span id="score">0</span> | 
-        High Score: <span id="high-score">0</span>
-    </h3>
-
-    <!-- Game Board -->
-    <div id="game-board"></div>
-
-    <!-- JavaScript File -->
-    <script src="main.js"></script>
-
+<main class="game-container">
+  <header><div class="eyebrow">THE SWEET ESCAPE</div><h1>Sweet <span>Swap</span></h1><p class="header-actions"><span>Match • Pop • Celebrate!</span><button id="coin-btn" type="button" aria-label="Sweet Coins, open shop">🪙 <b id="coin-count">300</b></button><button id="finish-btn" type="button" hidden>Finish</button></p></header>
+  <section class="left-panel" aria-label="Game statistics">
+    <div class="stats">
+      <div><small id="resource-label">⏱ TIME LEFT</small><strong id="timer">3:00</strong></div>
+      <div><small>⭐ SCORE</small><strong id="score">0</strong></div>
+      <div><small>🏆 BEST SCORE</small><strong id="high-score">0</strong></div>
+    </div>
+    <div class="track resource-track"><div id="timer-progress"></div></div>
+    <div class="level-row"><b id="level">Level 1</b><span id="level-target">Next: 100 pts</span><b id="combo">Combo ×1</b></div>
+    <div class="track level-track"><div id="level-progress"></div></div>
+  </section>
+  <section class="play-panel" aria-label="Game area">
+    <div id="game-message" role="status">Match 3 or more candies!</div>
+    <div class="board-slot">
+      <div class="board-wrapper">
+        <div id="game-board" aria-label="Candy board"></div>
+        <div id="effects" aria-hidden="true"></div>
+        <div id="overlay" class="overlay">
+          <div class="overlay-content">
+            <div id="overlay-icon">🍭</div><h2 id="overlay-title">Ready to play?</h2>
+            <p id="overlay-text">Choose a mode and start swapping!</p>
+            <div id="mode-picker" class="mode-picker" aria-label="Game mode">
+              <button type="button" data-mode="timed" aria-pressed="true">⏱ Timed</button>
+              <button type="button" data-mode="moves" aria-pressed="false">🎯 Adventure</button>
+              <button type="button" data-mode="endless" aria-pressed="false">♾ Endless</button>
+            <button data-mode="daily" aria-pressed="false">📅 Daily</button><button data-mode="survival" aria-pressed="false">🔥 Survival</button></div>
+            <div id="results" hidden aria-label="Game rewards"></div><button id="overlay-btn" class="primary">Start Game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="rush-area"><div class="rush-label"><b>⚡ Sugar Rush</b><span id="rush-status">0 / 40</span></div><div class="track rush-track"><div id="rush-progress"></div></div></div>
+  </section>
+  <aside class="right-panel" aria-label="Game controls">
+    <section class="controls">
+      <button id="pause-btn">⏸<span>Pause</span></button><button id="hint-btn">💡<span>Hint</span></button><button id="shuffle-btn">🔀<span>Shuffle (3)</span></button><button id="restart-btn">↻<span>Restart</span></button><button id="sound-btn" aria-pressed="true">🔊<span>Sound</span></button>
+    </section>
+    <section class="details"><span>Moves <b id="moves">0</b></span><span>Cleared <b id="cleared">0</b></span><span>Best combo <b id="best-combo">0</b></span></section>
+    <div class="utility-controls"><button id="help-btn" class="help-btn" type="button">ⓘ How to play</button><button id="music-btn" class="help-btn" type="button" aria-pressed="true">♫ Music</button><button id="hub-btn" class="help-btn">☰ Menu</button><button id="boost-btn" class="help-btn">🎁 Boosters</button></div>
+  </aside>
+</main>
+<dialog id="help-dialog" aria-labelledby="help-title">
+<h2 id="help-title">🍭 How to play</h2>
+<div class="help-tabs" role="tablist" aria-label="Help topics"><button type="button" role="tab" id="help-tab-basics" aria-controls="help-panel-basics" aria-selected="true" tabindex="0" data-help-tab="basics">Basics</button>
+<button type="button" role="tab" id="help-tab-modes" aria-controls="help-panel-modes" aria-selected="false" tabindex="-1" data-help-tab="modes">Modes</button>
+<button type="button" role="tab" id="help-tab-candies" aria-controls="help-panel-candies" aria-selected="false" tabindex="-1" data-help-tab="candies">Candies</button>
+<button type="button" role="tab" id="help-tab-survival" aria-controls="help-panel-survival" aria-selected="false" tabindex="-1" data-help-tab="survival">Survival</button>
+<button type="button" role="tab" id="help-tab-boosters" aria-controls="help-panel-boosters" aria-selected="false" tabindex="-1" data-help-tab="boosters">Boosters</button>
+<button type="button" role="tab" id="help-tab-rewards" aria-controls="help-panel-rewards" aria-selected="false" tabindex="-1" data-help-tab="rewards">Rewards</button>
+</div>
+<div class="help-content"><section role="tabpanel" id="help-panel-basics" aria-labelledby="help-tab-basics" tabindex="0" ><h3>Basics</h3><p><b>Swap and match:</b> Drag, swipe or tap two neighbouring candies. Match at least three of the same colour. Invalid swaps are reversed.</p><p><b>Keyboard:</b> Arrow keys move focus; Shift + arrow swaps. Enter or Space selects a candy. Esc pauses or resumes.</p><p><b>Combos:</b> Falling candies can form more matches automatically, increasing your score multiplier.</p><p><b>⚡ Sugar Rush:</b> Clear 40 candies to earn double points for 10 seconds in Timed or three valid moves in other modes.</p><p><b>Hint and Shuffle:</b> Hint highlights a useful swap. Shuffle refreshes the board; you start with three shuffles.</p></section>
+<section role="tabpanel" id="help-panel-modes" aria-labelledby="help-tab-modes" tabindex="0" hidden><h3>Modes</h3><p><b>⏱ Timed:</b> Start with three minutes and earn 10 seconds per 100 points.</p><p><b>🎯 Adventure:</b> Complete 100 levels with score, collection, clearance, special-candy, combo and obstacle missions. Each level has a move limit.</p><p><b>♾ Endless:</b> No time or move limit. Press Finish to collect rewards and see your results.</p><p><b>📅 Daily:</b> A date-based mission with a move limit. Complete it for coins and a streak.</p><p><b>🔥 Survival:</b> Start with 15 moves and earn more through matches and bonuses. See the Survival tab for details.</p><h3>Obstacles</h3><p>Ice and jelly are cleared by matching or blasting their tiles. Locked candies and chocolate cannot be swapped; clear their tiles or neighbouring tiles. Chocolate can spread when a move clears none of it.</p></section>
+<section role="tabpanel" id="help-panel-candies" aria-labelledby="help-tab-candies" tabindex="0" hidden><h3>Candies</h3><p><b>🍬 Match four in a line:</b> Create a striped candy that clears a row or column when activated.</p><p><b>🌈 Match five or more in a line:</b> Create a rainbow candy. Swap it with a candy to clear that colour.</p><p><b>💣 T/L match:</b> Create a bomb that clears a 3×3 area when activated.</p><h3>Special combinations</h3><p>Striped + striped: clear a row and column. Striped + bomb: clear three rows and columns. Bomb + bomb: clear a 5×5 area.</p><p>Rainbow + striped or bomb: convert candies of the matching colour into specials and activate them. Rainbow + rainbow: clear the board.</p><p>Special candies can trigger other specials in a chain reaction.</p></section>
+<section role="tabpanel" id="help-panel-survival" aria-labelledby="help-tab-survival" tabindex="0" hidden><h3>Survival</h3><p>🔥 Start with <b>15 moves</b>. Each valid swap costs one move. Earn extra moves before your balance reaches zero.</p><dl class="help-rewards"><dt>Match four</dt><dd>+1 move</dd><dt>Match five or more</dt><dd>+2 moves</dd><dt>Create a bomb</dt><dd>+2 moves</dd><dt>Activate a rainbow</dt><dd>+2 moves</dd><dt>Each extra chain reaction</dt><dd>+1 move</dd><dt>Each 100-point level up</dt><dd>+3 moves</dd><dt>Activate Sugar Rush</dt><dd>+2 moves</dd></dl><p>Rewards can combine, but overlapping matches earn only their strongest match reward. Your balance cannot exceed <b>30 moves</b>. A red warning appears at five or fewer moves.</p><h3>One-time milestones</h3><p>25 moves = 25 coins; 50 = 50; 100 = 100; 200 = 200; 500 = 300; 1,000 = 500. See your survival record and milestones in Menu → Profile.</p></section>
+<section role="tabpanel" id="help-panel-boosters" aria-labelledby="help-tab-boosters" tabindex="0" hidden><h3>Boosters</h3><p>Open Boosters to use your inventory. Buy more with Sweet Coins in Menu → Shop.</p><p><b>🔨 Hammer:</b> Clear a selected candy.</p><p><b>💣 Mega bomb:</b> Clear a 5×5 area around a selected candy.</p><p><b>🌈 Colour blast:</b> Clear candies of the selected colour.</p><p><b>🔀 Super shuffle:</b> Refresh the board.</p><p><b>➕ Extra moves:</b> Add five moves in Adventure, Daily or Survival (up to the 30-move cap).</p><p><b>⏱ Extra time:</b> Add 30 seconds in Timed.</p><p><b>👆 Free swap:</b> Allow the next swap without a match.</p><p><b>⚡ Sugar Rush:</b> Activate double points.</p><p>One undo per game is available through the Boosters menu before another booster or purchase; rewards and statistics from the undone move are reversed. Targeted boosters are only consumed when used. Press Escape or use Cancel selected booster in Boosters to cancel.</p></section>
+<section role="tabpanel" id="help-panel-rewards" aria-labelledby="help-tab-rewards" tabindex="0" hidden><h3>Rewards</h3><p><b>🪙 Sweet Coins:</b> Earn rewards from Adventure stars, daily challenges, achievements and Survival milestones. Claim 50 daily login coins in Menu → Home. Tap the coin counter to open the shop.</p><p><b>Gameplay rewards:</b> Every 100 points earns 5 coins; create a striped, bomb or rainbow candy for 1, 2 or 3 coins respectively. Combo ×5 earns 5, ×10 earns 15, and naturally triggered Sugar Rush earns 5. Beat an existing high score and finish the game for 25 coins.</p><p><b>Completion:</b> Timed, Endless and Survival earn up to 30 coins at completion (one per 30 points). First completion of each tenth Adventure stage earns 100 extra coins. First 7-day and 30-day daily streak milestones earn 250 and 1,000 coins.</p><p><b>⭐ Stars:</b> Finish an Adventure mission within 55% of its original move limit for three stars, or 80% for two; otherwise earn one. Improved stars award 30 coins each.</p><p><b>📅 Daily:</b> First completion of a daily challenge awards 100 coins. Consecutive completions build your streak.</p><p><b>🏆 Achievements:</b> Unlock trophies and 50 coins per achievement. View them in Menu → Profile.</p><p><b>🎨 Themes:</b> Unlock alternative themes for 200 coins each.</p><p><b>Settings:</b> Adjust music, sound, voice and vibration; switch tracks, use fullscreen or export/import progress. Use Menu → Home to resume saved gameplay.</p></section>
+</div>
+<button id="close-help" class="primary" type="button">Got it!</button>
+</dialog>
+<dialog id="hub" aria-label="Game menu"><div class="hub-head"><h2 id="hub-title">Sweet Swap</h2><button id="hub-close">✕</button></div><div id="hub-tabs"></div><div id="hub-content"></div></dialog><audio id="background-music" src="sweet-swap-theme.mp3" loop preload="none"></audio>
+<script src="main.js"></script>
 </body>
-
 </html>
